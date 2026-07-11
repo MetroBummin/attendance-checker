@@ -148,6 +148,7 @@
   </div>
   <div class="grid" style="margin-top:22px">
     <button class="addbtn" onclick="openAdd()">+ 학생 추가</button>
+    <button class="addbtn" onclick="openBulk()">📋 일괄 추가 (붙여넣기)</button>
   </div>
 </main>
 
@@ -171,6 +172,22 @@
       <button class="btn danger" id="btnDelete" style="display:none" onclick="deleteStudent()">삭제</button>
       <button class="btn ghost" onclick="closeAll()">취소</button>
       <button class="btn primary" onclick="saveStudent()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 학생 일괄 추가 -->
+<div class="overlay" id="ovBulk">
+  <div class="modal">
+    <h2>학생 일괄 추가</h2>
+    <div class="note">엑셀에서 <b>이름 · 학년 · 학부모 번호</b> 열을 복사해 아래에 붙여넣으세요. 한 줄에 한 명씩, 열 순서는 자동으로 인식합니다. 학년이 없으면 '기타'로 등록됩니다.</div>
+    <div class="field">
+      <textarea id="bulkText" placeholder="김민준	중3	010-1234-5678&#10;이서연	고1	010-2345-6789&#10;박지호	고2	010-3456-7890" style="min-height:180px"></textarea>
+    </div>
+    <div class="statusbox warn" id="bulkPreview">붙여넣으면 인식 결과가 표시됩니다.</div>
+    <div class="btnrow">
+      <button class="btn ghost" onclick="closeAll()">취소</button>
+      <button class="btn primary" onclick="saveBulk()">추가</button>
     </div>
   </div>
 </div>
@@ -393,6 +410,70 @@ function deleteStudent(){
   closeAll(); render();
 }
 
+// ---------- 일괄 추가 (엑셀 붙여넣기) ----------
+const PHONE_RE = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/;
+function parseBulk(text){
+  const ok = [], bad = [];
+  text.split(/\r?\n/).forEach(line => {
+    const raw = line.trim();
+    if(!raw) return;
+    let parts;
+    if(raw.includes('\t')) parts = raw.split('\t');
+    else if(raw.includes(',')) parts = raw.split(',');
+    else parts = raw.split(/\s+/);
+    parts = parts.map(p => p.trim()).filter(Boolean);
+    const phoneIdx = parts.findIndex(p => PHONE_RE.test(p));
+    if(phoneIdx < 0){ bad.push(raw); return; }
+    const phone = parts[phoneIdx].match(PHONE_RE)[0];
+    const rest = parts.filter((_, i) => i !== phoneIdx);
+    const gradeIdx = rest.findIndex(p => GRADES.includes(p));
+    const grade = gradeIdx >= 0 ? rest[gradeIdx] : '기타';
+    const name = rest.filter((_, i) => i !== gradeIdx)[0];
+    if(!name){ bad.push(raw); return; }
+    ok.push({ name, grade, phone });
+  });
+  return { ok, bad };
+}
+function openBulk(){
+  document.getElementById('bulkText').value = '';
+  updateBulkPreview();
+  show('ovBulk');
+}
+function updateBulkPreview(){
+  const { ok, bad } = parseBulk(document.getElementById('bulkText').value);
+  const box = document.getElementById('bulkPreview');
+  if(!ok.length && !bad.length){
+    box.className = 'statusbox warn';
+    box.textContent = '붙여넣으면 인식 결과가 표시됩니다.';
+    return;
+  }
+  box.className = bad.length ? 'statusbox warn' : 'statusbox ok';
+  let msg = `✅ 인식됨: ${ok.length}명`;
+  if(ok.length) msg += ` (예: ${ok[0].name} · ${ok[0].grade} · ${ok[0].phone})`;
+  if(bad.length) msg += ` / ⚠️ 인식 실패 ${bad.length}줄 — 번호 형식을 확인하세요`;
+  box.textContent = msg;
+}
+function saveBulk(){
+  const { ok, bad } = parseBulk(document.getElementById('bulkText').value);
+  if(!ok.length){ toast('추가할 학생을 인식하지 못했어요'); return; }
+  let added = 0, dup = 0;
+  ok.forEach(s => {
+    const digits = s.phone.replace(/[^0-9]/g, '');
+    if(students.some(x => x.name === s.name && x.phone.replace(/[^0-9]/g, '') === digits)){ dup++; return; }
+    students.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      name: s.name, grade: s.grade, phone: s.phone
+    });
+    added++;
+  });
+  LS.set('students', students);
+  closeAll(); render();
+  let msg = `${added}명 추가 완료`;
+  if(dup) msg += ` (중복 ${dup}명 제외)`;
+  if(bad.length) msg += ` / 실패 ${bad.length}줄`;
+  toast(msg);
+}
+
 // ---------- 통보 플로우 ----------
 function openType(id){
   const s = students.find(x => x.id === id); if(!s) return;
@@ -574,6 +655,7 @@ document.querySelectorAll('.overlay').forEach(o => {
 ['inApiKey','inApiSecret','inSenderPhone','inWorkerUrl'].forEach(id => {
   document.getElementById(id).addEventListener('input', updateSolapiStatus);
 });
+document.getElementById('bulkText').addEventListener('input', updateBulkPreview);
 
 const now = new Date();
 document.getElementById('today').textContent =
