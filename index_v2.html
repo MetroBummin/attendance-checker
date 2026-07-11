@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>출결 관리</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR",sans-serif;
+    background:#f4f6f9; color:#1a1d24; user-select:none; -webkit-user-select:none;
+  }
+  header {
+    background:#fff; border-bottom:1px solid #e5e8ee;
+    padding:14px 20px; display:flex; align-items:center; gap:12px;
+    position:sticky; top:0; z-index:10;
+  }
+  header h1 { font-size:20px; font-weight:700; flex:1; }
+  header .date { color:#7a828f; font-size:14px; margin-right:8px; }
+  .testbadge {
+    background:#fff3e0; color:#c2660a; border:1px solid #f5c78b;
+    font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px;
+  }
+  .hbtn {
+    border:1px solid #d8dde5; background:#fff; border-radius:10px;
+    padding:9px 16px; font-size:15px; font-weight:600; color:#3a4150; cursor:pointer;
+  }
+  .hbtn:active { background:#eef1f5; }
+
+  main { padding:20px; max-width:1100px; margin:0 auto; }
+  .grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px;
+  }
+  .stu {
+    background:#fff; border:1px solid #e2e6ec; border-radius:16px;
+    min-height:96px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:20px; font-weight:700; cursor:pointer; gap:6px;
+    box-shadow:0 1px 3px rgba(20,30,50,.05); position:relative; transition:transform .08s;
+  }
+  .stu:active { transform:scale(.96); background:#f2f6ff; }
+  .stu .sent {
+    font-size:12px; font-weight:600; padding:2px 8px; border-radius:10px;
+  }
+  .sent.late { background:#fff3e0; color:#c2660a; }
+  .sent.abs  { background:#fdecec; color:#c0392b; }
+  .addbtn {
+    border:2px dashed #c3cbd6; background:transparent; border-radius:16px;
+    min-height:96px; font-size:17px; font-weight:600; color:#8a93a1; cursor:pointer;
+  }
+  .addbtn:active { background:#eef1f5; }
+  .empty { text-align:center; color:#8a93a1; padding:60px 20px; font-size:16px; line-height:1.7; }
+
+  .overlay {
+    position:fixed; inset:0; background:rgba(15,20,30,.45); z-index:50;
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .overlay.show { display:flex; }
+  .modal {
+    background:#fff; border-radius:20px; width:100%; max-width:480px;
+    max-height:85vh; overflow-y:auto; padding:24px;
+    box-shadow:0 12px 40px rgba(10,15,30,.25);
+  }
+  .modal h2 { font-size:19px; margin-bottom:18px; }
+  .modal h2 small { color:#8a93a1; font-weight:500; font-size:14px; margin-left:6px; }
+  .field { margin-bottom:14px; }
+  .field label { display:block; font-size:13px; font-weight:600; color:#5a6270; margin-bottom:6px; }
+  .field select {
+    width:100%; border:1px solid #d8dde5; border-radius:10px; padding:12px 14px;
+    font-size:16px; font-family:inherit; background:#fafbfc; appearance:none;
+  }
+  .gradehead {
+    font-size:15px; font-weight:700; color:#5a6270; margin:22px 0 10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .gradehead:first-child { margin-top:0; }
+  .gradehead .cnt { font-size:13px; font-weight:600; color:#9aa2af; }
+  .field input, .field textarea {
+    width:100%; border:1px solid #d8dde5; border-radius:10px; padding:12px 14px;
+    font-size:16px; font-family:inherit; background:#fafbfc;
+  }
+  .field textarea { min-height:120px; line-height:1.6; resize:vertical; user-select:text; -webkit-user-select:text; }
+  .field input:focus, .field textarea:focus { outline:2px solid #3b74f2; border-color:transparent; }
+
+  .chips { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+  .chip {
+    border:1.5px solid #d8dde5; background:#fff; border-radius:12px;
+    padding:12px 18px; font-size:16px; font-weight:600; color:#3a4150; cursor:pointer;
+  }
+  .chip:active { background:#eef1f5; }
+  .chip.big { flex:1; text-align:center; padding:18px; font-size:18px; }
+  .chip.late-c { border-color:#f5c78b; color:#c2660a; }
+  .chip.abs-c  { border-color:#f0b3b3; color:#c0392b; }
+
+  .btnrow { display:flex; gap:10px; margin-top:8px; }
+  .btn {
+    flex:1; border:none; border-radius:12px; padding:15px; font-size:16px; font-weight:700; cursor:pointer;
+  }
+  .btn.primary { background:#3b74f2; color:#fff; }
+  .btn.primary:active { background:#2f5fd0; }
+  .btn.ghost { background:#eef1f5; color:#3a4150; }
+  .btn.ghost:active { background:#e2e6ec; }
+  .btn.danger { background:#fdecec; color:#c0392b; flex:0 0 auto; padding:15px 20px; }
+
+  .msgbox {
+    background:#f4f6f9; border-radius:12px; padding:14px; font-size:15px;
+    line-height:1.65; margin-bottom:6px; white-space:pre-wrap;
+  }
+  .note { font-size:13px; color:#8a93a1; margin:6px 0 14px; line-height:1.5; }
+  .statusbox {
+    font-size:14px; font-weight:700; padding:12px 14px; border-radius:10px; margin-bottom:16px;
+  }
+  .statusbox.ok { background:#eafaf0; color:#1e8e5a; border:1px solid #b7e8cd; }
+  .statusbox.warn { background:#fff3e0; color:#c2660a; border:1px solid #f5c78b; }
+
+  /* 절약모드 토글 스위치 */
+  .switchrow { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .switchrow .lab { font-size:14px; font-weight:700; color:#3a4150; }
+  .switch { position:relative; display:inline-block; width:52px; height:30px; flex:0 0 auto; }
+  .switch input { opacity:0; width:0; height:0; }
+  .slider {
+    position:absolute; cursor:pointer; inset:0; background:#d8dde5;
+    border-radius:30px; transition:.2s;
+  }
+  .slider:before {
+    content:""; position:absolute; height:24px; width:24px; left:3px; top:3px;
+    background:#fff; border-radius:50%; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.2);
+  }
+  .switch input:checked + .slider { background:#1e8e5a; }
+  .switch input:checked + .slider:before { transform:translateX(22px); }
+
+  .hist-item { border-bottom:1px solid #eef1f5; padding:13px 2px; }
+  .hist-item .top { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+  .hist-item .name { font-weight:700; font-size:16px; }
+  .hist-item .time { color:#8a93a1; font-size:13px; margin-left:auto; }
+  .tag { font-size:12px; font-weight:700; padding:2px 8px; border-radius:8px; }
+  .tag.late { background:#fff3e0; color:#c2660a; }
+  .tag.abs  { background:#fdecec; color:#c0392b; }
+  .hist-item .msg { color:#5a6270; font-size:14px; line-height:1.5; }
+
+  .toast {
+    position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+    background:#1a1d24; color:#fff; padding:13px 22px; border-radius:12px;
+    font-size:15px; font-weight:600; z-index:99; opacity:0; transition:opacity .25s; pointer-events:none;
+    max-width:90vw; text-align:center;
+  }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="acaName">출결 관리</h1>
+  <span class="testbadge" id="modeBadge">테스트 모드</span>
+  <span class="date" id="today"></span>
+  <button class="hbtn" onclick="openBulk()">일괄추가</button>
+  <button class="hbtn" onclick="openHistory()">기록</button>
+  <button class="hbtn" onclick="openSettings()">설정</button>
+</header>
+
+<main>
+  <div id="groups"></div>
+  <div class="empty" id="empty" style="display:none">
+    아직 등록된 학생이 없어요.<br>아래 <b>+ 학생 추가</b> 버튼으로 시작하세요.
+  </div>
+  <div class="grid" style="margin-top:22px">
+    <button class="addbtn" onclick="openAdd()">+ 학생 추가</button>
+  </div>
+</main>
+
+<!-- 학생 추가/수정 -->
+<div class="overlay" id="ovStudent">
+  <div class="modal">
+    <h2 id="stuModalTitle">학생 추가</h2>
+    <div class="field">
+      <label>학생 이름</label>
+      <input id="inName" placeholder="예: 김민준" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>학년</label>
+      <select id="inGrade"></select>
+    </div>
+    <div class="field">
+      <label>학부모 휴대폰 번호</label>
+      <input id="inPhone" placeholder="예: 010-1234-5678" inputmode="tel" autocomplete="off">
+    </div>
+    <div class="btnrow">
+      <button class="btn danger" id="btnDelete" style="display:none" onclick="deleteStudent()">삭제</button>
+      <button class="btn ghost" onclick="closeAll()">취소</button>
+      <button class="btn primary" onclick="saveStudent()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 학생 일괄 추가 -->
+<div class="overlay" id="ovBulk">
+  <div class="modal">
+    <h2>학생 일괄 추가</h2>
+    <div class="note">엑셀에서 <b>이름 · 학년 · 학부모 번호</b> 열을 복사해 아래에 붙여넣으세요. 한 줄에 한 명씩, 열 순서는 자동으로 인식합니다. 학년이 없으면 '기타'로 등록됩니다.</div>
+    <div class="field">
+      <textarea id="bulkText" placeholder="김민준	중3	010-1234-5678&#10;이서연	고1	010-2345-6789&#10;박지호	고2	010-3456-7890" style="min-height:180px"></textarea>
+    </div>
+    <div class="statusbox warn" id="bulkPreview">붙여넣으면 인식 결과가 표시됩니다.</div>
+    <div class="btnrow">
+      <button class="btn ghost" onclick="closeAll()">취소</button>
+      <button class="btn primary" onclick="saveBulk()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- 통보 유형 선택 -->
+<div class="overlay" id="ovType">
+  <div class="modal">
+    <h2 id="typeTitle">통보 유형</h2>
+    <div class="chips">
+      <button class="chip big late-c" onclick="pickType('지각')">지각 (미도착)</button>
+      <button class="chip big abs-c" onclick="pickType('결석')">결석</button>
+    </div>
+    <div class="btnrow"><button class="btn ghost" onclick="closeAll()">취소</button></div>
+  </div>
+</div>
+
+<!-- 결석 사유 선택 -->
+<div class="overlay" id="ovReason">
+  <div class="modal">
+    <h2 id="reasonTitle">결석 사유</h2>
+    <div class="chips" id="reasonChips"></div>
+    <div class="btnrow"><button class="btn ghost" onclick="closeAll()">취소</button></div>
+  </div>
+</div>
+
+<!-- 발송 전 미리보기 -->
+<div class="overlay" id="ovPreview">
+  <div class="modal">
+    <h2>발송 전 확인 <small id="pvTo"></small></h2>
+    <div class="field">
+      <label>문자 내용 (수정 가능)</label>
+      <textarea id="pvMsg"></textarea>
+    </div>
+    <div class="note" id="pvNote">테스트 모드: 실제 문자는 발송되지 않고 기록에만 저장됩니다.</div>
+    <div class="btnrow">
+      <button class="btn ghost" onclick="closeAll()">취소</button>
+      <button class="btn primary" id="btnSend" onclick="sendMsg()">발송</button>
+    </div>
+  </div>
+</div>
+
+<!-- 기록 -->
+<div class="overlay" id="ovHistory">
+  <div class="modal">
+    <h2>발송 기록</h2>
+    <div id="histList"></div>
+    <div class="btnrow">
+      <button class="btn ghost" onclick="exportCSV()">CSV 내보내기</button>
+      <button class="btn primary" onclick="closeAll()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 -->
+<div class="overlay" id="ovSettings">
+  <div class="modal">
+    <h2>설정</h2>
+    <div class="field">
+      <label>학원 이름 (문자 머리말에 사용)</label>
+      <input id="inAcademy" placeholder="고려에듀학원" autocomplete="off">
+    </div>
+
+    <div class="gradehead" style="margin-top:20px">절약 모드</div>
+    <div class="switchrow">
+      <span class="lab">문자앱으로 보내기 (발송비 0원)</span>
+      <label class="switch"><input type="checkbox" id="inEco"><span class="slider"></span></label>
+    </div>
+    <div class="note">켜면 '발송' 버튼이 휴대폰 <b>메시지 앱</b>을 열고 내용·수신번호가 입력된 상태로 전환됩니다. 전송 버튼만 누르면 되고, 문자 무제한 요금제면 비용이 들지 않습니다. 단, 한 명씩만 보낼 수 있고 실제 전송 여부는 기록되지 않습니다(기록에는 '문자앱'으로 표시). 발신번호는 이 기기의 전화번호가 됩니다.</div>
+
+    <div class="gradehead" style="margin-top:20px">솔라피(Solapi) 연동</div>
+    <div id="solapiStatus" class="statusbox">⚠️ 솔라피 설정이 필요합니다.</div>
+    <div class="field">
+      <label>솔라피 API Key</label>
+      <input id="inApiKey" placeholder="API Key 입력" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>솔라피 API Secret</label>
+      <input id="inApiSecret" type="password" placeholder="API Secret 입력" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>발신번호 (본인 휴대폰 번호)</label>
+      <input id="inSenderPhone" placeholder="예: 010-1234-5678" inputmode="tel" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>발송 서버(Worker) 주소</label>
+      <input id="inWorkerUrl" placeholder="https://your-worker.workers.dev" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="note">이 값들은 이 기기의 브라우저(localStorage)에만 저장되며, 선생님별로 각자의 발신번호를 입력해 본인 번호로 발송합니다. API Key/Secret과 발송 서버 주소는 공용 값을 입력하시면 됩니다.</div>
+    <div class="note">발송 모드: <b id="modeNote">테스트</b> — 절약 모드가 켜져 있으면 문자앱으로, 꺼져 있고 위 4개 항목이 모두 채워지면 솔라피로 발송됩니다.</div>
+    <div class="btnrow">
+      <button class="btn ghost" onclick="closeAll()">취소</button>
+      <button class="btn primary" onclick="saveSettings()">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LS = {
+  get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(e){ return d; } },
+  set(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+};
+let students = LS.get('students', []);
+let history_ = LS.get('history', []);
+let settings = LS.get('settings', { academy:'고려에듀학원', apiKey:'', apiSecret:'', senderPhone:'', workerUrl:'', ecoMode:false });
+if(!settings.academy){ settings.academy = '고려에듀학원'; }
+if(settings.apiKey === undefined) settings.apiKey = '';
+if(settings.apiSecret === undefined) settings.apiSecret = '';
+if(settings.senderPhone === undefined) settings.senderPhone = '';
+if(settings.workerUrl === undefined) settings.workerUrl = '';
+if(settings.ecoMode === undefined) settings.ecoMode = false;
+LS.set('settings', settings);
+function isFullyConfigured(){
+  return !!(settings.apiKey && settings.apiSecret && settings.senderPhone && settings.workerUrl);
+}
+
+let editingId = null;   // 수정 중인 학생 id
+let flow = {};          // {student, type, reason}
+let pressTimer = null, longPressed = false;
+
+const REASONS = ['병결','여행','학교 행사','가정 사정','사전연락 없음','기타'];
+const GRADES = ['초1','초2','초3','초4','초5','초6','중1','중2','중3','고1','고2','고3','기타'];
+
+// 학년 select 옵션 채우기
+document.getElementById('inGrade').innerHTML =
+  GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
+
+// ---------- 렌더 ----------
+function todayKey(){ return new Date().toISOString().slice(0,10); }
+
+function makeStuBtn(s, tk){
+  const btn = document.createElement('button');
+  btn.className = 'stu';
+  const todaySent = history_.filter(h => h.id === s.id && h.ts.slice(0,10) === tk);
+  let badge = '';
+  if (todaySent.length){
+    const last = todaySent[todaySent.length-1];
+    badge = `<span class="sent ${last.type==='지각'?'late':'abs'}">${last.type} 통보됨</span>`;
+  }
+  btn.innerHTML = `<span>${esc(s.name)}</span>${badge}`;
+  btn.addEventListener('pointerdown', () => {
+    longPressed = false;
+    pressTimer = setTimeout(() => { longPressed = true; openEdit(s.id); }, 600);
+  });
+  btn.addEventListener('pointerup', () => {
+    clearTimeout(pressTimer);
+    if (!longPressed) openType(s.id);
+  });
+  btn.addEventListener('pointerleave', () => clearTimeout(pressTimer));
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+  return btn;
+}
+
+function render(){
+  document.getElementById('acaName').textContent = settings.academy ? settings.academy + ' 출결' : '출결 관리';
+  const badge = document.getElementById('modeBadge');
+  if(settings.ecoMode){
+    badge.textContent = '절약 모드';
+    badge.style.background = '#e8f0fe'; badge.style.color = '#1a56db'; badge.style.borderColor = '#b6ccf5';
+  } else if(isFullyConfigured()){
+    badge.textContent = '실사용 모드';
+    badge.style.background = '#eafaf0'; badge.style.color = '#1e8e5a'; badge.style.borderColor = '#b7e8cd';
+  } else {
+    badge.textContent = '테스트 모드';
+    badge.style.background = '#fff3e0'; badge.style.color = '#c2660a'; badge.style.borderColor = '#f5c78b';
+  }
+  const box = document.getElementById('groups');
+  box.innerHTML = '';
+  const tk = todayKey();
+
+  GRADES.forEach(g => {
+    const list = students.filter(s => (s.grade || '기타') === g);
+    if(!list.length) return;
+    const head = document.createElement('div');
+    head.className = 'gradehead';
+    head.innerHTML = `${g} <span class="cnt">${list.length}명</span>`;
+    box.appendChild(head);
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    list.sort((a,b) => a.name.localeCompare(b.name,'ko'))
+        .forEach(s => grid.appendChild(makeStuBtn(s, tk)));
+    box.appendChild(grid);
+  });
+
+  document.getElementById('empty').style.display = students.length ? 'none' : 'block';
+}
+
+function esc(t){ const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+// ---------- 학생 추가/수정/삭제 ----------
+function openAdd(){
+  editingId = null;
+  document.getElementById('stuModalTitle').textContent = '학생 추가';
+  document.getElementById('inName').value = '';
+  document.getElementById('inGrade').value = '중1';
+  document.getElementById('inPhone').value = '';
+  document.getElementById('btnDelete').style.display = 'none';
+  show('ovStudent');
+  setTimeout(()=>document.getElementById('inName').focus(), 100);
+}
+function openEdit(id){
+  const s = students.find(x => x.id === id); if(!s) return;
+  editingId = id;
+  document.getElementById('stuModalTitle').textContent = '학생 정보 수정';
+  document.getElementById('inName').value = s.name;
+  document.getElementById('inGrade').value = s.grade || '기타';
+  document.getElementById('inPhone').value = s.phone;
+  document.getElementById('btnDelete').style.display = 'block';
+  show('ovStudent');
+}
+function saveStudent(){
+  const name = document.getElementById('inName').value.trim();
+  const grade = document.getElementById('inGrade').value;
+  const phone = document.getElementById('inPhone').value.trim();
+  if(!name){ toast('이름을 입력해주세요'); return; }
+  if(!/^01[016789][-\s]?\d{3,4}[-\s]?\d{4}$/.test(phone)){ toast('휴대폰 번호를 확인해주세요'); return; }
+  if(editingId){
+    const s = students.find(x => x.id === editingId);
+    s.name = name; s.grade = grade; s.phone = phone;
+  } else {
+    students.push({ id: Date.now().toString(36), name, grade, phone });
+  }
+  LS.set('students', students);
+  closeAll(); render();
+}
+function deleteStudent(){
+  if(!confirm('이 학생을 삭제할까요? 발송 기록은 유지됩니다.')) return;
+  students = students.filter(x => x.id !== editingId);
+  LS.set('students', students);
+  closeAll(); render();
+}
+
+// ---------- 일괄 추가 (엑셀 붙여넣기) ----------
+const PHONE_RE = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/;
+function parseBulk(text){
+  const ok = [], bad = [];
+  text.split(/\r?\n/).forEach(line => {
+    const raw = line.trim();
+    if(!raw) return;
+    let parts;
+    if(raw.includes('\t')) parts = raw.split('\t');
+    else if(raw.includes(',')) parts = raw.split(',');
+    else parts = raw.split(/\s+/);
+    parts = parts.map(p => p.trim()).filter(Boolean);
+    const phoneIdx = parts.findIndex(p => PHONE_RE.test(p));
+    if(phoneIdx < 0){ bad.push(raw); return; }
+    const phone = parts[phoneIdx].match(PHONE_RE)[0];
+    const rest = parts.filter((_, i) => i !== phoneIdx);
+    const gradeIdx = rest.findIndex(p => GRADES.includes(p));
+    const grade = gradeIdx >= 0 ? rest[gradeIdx] : '기타';
+    const name = rest.filter((_, i) => i !== gradeIdx)[0];
+    if(!name){ bad.push(raw); return; }
+    ok.push({ name, grade, phone });
+  });
+  return { ok, bad };
+}
+function openBulk(){
+  document.getElementById('bulkText').value = '';
+  updateBulkPreview();
+  show('ovBulk');
+}
+function updateBulkPreview(){
+  const { ok, bad } = parseBulk(document.getElementById('bulkText').value);
+  const box = document.getElementById('bulkPreview');
+  if(!ok.length && !bad.length){
+    box.className = 'statusbox warn';
+    box.textContent = '붙여넣으면 인식 결과가 표시됩니다.';
+    return;
+  }
+  box.className = bad.length ? 'statusbox warn' : 'statusbox ok';
+  let msg = `✅ 인식됨: ${ok.length}명`;
+  if(ok.length) msg += ` (예: ${ok[0].name} · ${ok[0].grade} · ${ok[0].phone})`;
+  if(bad.length) msg += ` / ⚠️ 인식 실패 ${bad.length}줄 — 번호 형식을 확인하세요`;
+  box.textContent = msg;
+}
+function saveBulk(){
+  const { ok, bad } = parseBulk(document.getElementById('bulkText').value);
+  if(!ok.length){ toast('추가할 학생을 인식하지 못했어요'); return; }
+  let added = 0, dup = 0;
+  ok.forEach(s => {
+    const digits = s.phone.replace(/[^0-9]/g, '');
+    if(students.some(x => x.name === s.name && x.phone.replace(/[^0-9]/g, '') === digits)){ dup++; return; }
+    students.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      name: s.name, grade: s.grade, phone: s.phone
+    });
+    added++;
+  });
+  LS.set('students', students);
+  closeAll(); render();
+  let msg = `${added}명 추가 완료`;
+  if(dup) msg += ` (중복 ${dup}명 제외)`;
+  if(bad.length) msg += ` / 실패 ${bad.length}줄`;
+  toast(msg);
+}
+
+// ---------- 통보 플로우 ----------
+function openType(id){
+  const s = students.find(x => x.id === id); if(!s) return;
+  flow = { student: s };
+  document.getElementById('typeTitle').innerHTML = `${esc(s.name)} <small>통보 유형 선택</small>`;
+  show('ovType');
+}
+function pickType(type){
+  flow.type = type;
+  if(type === '지각'){ flow.reason = ''; openPreview(); }
+  else {
+    document.getElementById('reasonTitle').innerHTML = `${esc(flow.student.name)} <small>결석 사유</small>`;
+    const box = document.getElementById('reasonChips');
+    box.innerHTML = '';
+    REASONS.forEach(r => {
+      const c = document.createElement('button');
+      c.className = 'chip'; c.textContent = r;
+      c.onclick = () => { flow.reason = r; openPreview(); };
+      box.appendChild(c);
+    });
+    hide('ovType'); show('ovReason');
+  }
+}
+function buildMsg(){
+  const a = settings.academy || 'OO학원';
+  const n = flow.student.name;
+  if(flow.type === '지각')
+    return `[${a}] ${n} 학생이 수업 시작 시간까지 도착하지 않아 안전 확인차 연락드립니다. 이동 중이거나 사정이 있으시면 회신 부탁드립니다.`;
+  if(flow.reason === '사전연락 없음')
+    return `[${a}] ${n} 학생이 오늘 결석하였으며, 사전 연락이 확인되지 않아 안내드립니다. 사유 확인 회신 부탁드립니다.`;
+  return `[${a}] ${n} 학생이 오늘 '${flow.reason}' 사유로 결석 처리되었음을 안내드립니다. 안내된 사유가 실제와 다를 경우 회신 부탁드립니다.`;
+}
+function openPreview(){
+  hide('ovType'); hide('ovReason');
+  document.getElementById('pvTo').textContent = `→ ${flow.student.name} 학부모 (${flow.student.phone})`;
+  document.getElementById('pvMsg').value = buildMsg();
+  const note = document.getElementById('pvNote');
+  const btn = document.getElementById('btnSend');
+  if(settings.ecoMode){
+    note.textContent = '절약 모드: 발송을 누르면 메시지 앱이 열립니다. 앱에서 전송 버튼까지 눌러야 실제 발송됩니다.';
+    btn.textContent = '문자앱으로 발송';
+  } else if(isFullyConfigured()){
+    note.textContent = '실사용 모드: 발송을 누르면 솔라피를 통해 실제 문자가 발송됩니다.';
+    btn.textContent = '발송';
+  } else {
+    note.textContent = '테스트 모드: 실제 문자는 발송되지 않고 기록에만 저장됩니다. (설정에서 솔라피 정보를 모두 입력하면 실제 발송으로 전환됩니다)';
+    btn.textContent = '발송';
+  }
+  show('ovPreview');
+}
+async function sendMsg(){
+  const msg = document.getElementById('pvMsg').value.trim();
+  const btn = document.getElementById('btnSend');
+
+  // 절약 모드: 기기의 문자앱으로 넘기기
+  if(settings.ecoMode){
+    const to = flow.student.phone.replace(/[^0-9]/g, '');
+    const isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent);
+    const sep = isApple ? '&' : '?';
+    history_.push({
+      id: flow.student.id, name: flow.student.name, grade: flow.student.grade || '', phone: flow.student.phone,
+      type: flow.type, reason: flow.reason, msg, ts: new Date().toISOString(), status:'eco'
+    });
+    LS.set('history', history_);
+    closeAll(); render();
+    location.href = `sms:${to}${sep}body=${encodeURIComponent(msg)}`;
+    toast(`📱 메시지 앱으로 이동 — 전송 버튼을 눌러주세요`);
+    return;
+  }
+
+  if(!isFullyConfigured()){
+    history_.push({
+      id: flow.student.id, name: flow.student.name, grade: flow.student.grade || '', phone: flow.student.phone,
+      type: flow.type, reason: flow.reason, msg, ts: new Date().toISOString(), status:'test'
+    });
+    LS.set('history', history_);
+    closeAll(); render();
+    toast(`[테스트] ${flow.student.name} 학부모에게 ${flow.type} 문자 발송 완료 (기록 저장됨)`);
+    return;
+  }
+
+  btn.disabled = true;
+  const origLabel = btn.textContent;
+  btn.textContent = '발송 중...';
+  try{
+    const res = await fetch(settings.workerUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: settings.apiKey,
+        apiSecret: settings.apiSecret,
+        from: settings.senderPhone.replace(/[^0-9]/g, ''),
+        to: flow.student.phone.replace(/[^0-9]/g, ''),
+        text: msg
+      })
+    });
+    let data;
+    try { data = await res.json(); } catch(e) { data = {}; }
+    if(!res.ok || data.error){
+      throw new Error(data.error || `발송 실패 (HTTP ${res.status})`);
+    }
+    history_.push({
+      id: flow.student.id, name: flow.student.name, grade: flow.student.grade || '', phone: flow.student.phone,
+      type: flow.type, reason: flow.reason, msg, ts: new Date().toISOString(), status:'sent'
+    });
+    LS.set('history', history_);
+    closeAll(); render();
+    toast(`✅ ${flow.student.name} 학부모에게 ${flow.type} 문자 발송 완료`);
+  } catch(err){
+    toast(`❌ 발송 실패: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origLabel;
+  }
+}
+
+// ---------- 기록 ----------
+function openHistory(){
+  const box = document.getElementById('histList');
+  if(!history_.length){ box.innerHTML = '<div class="note">아직 발송 기록이 없어요.</div>'; }
+  else {
+    box.innerHTML = [...history_].reverse().map(h => {
+      const d = new Date(h.ts);
+      const t = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      const statusTag = h.status === 'sent' ? '<span class="tag" style="background:#eafaf0;color:#1e8e5a">발송됨</span>'
+                       : h.status === 'eco' ? '<span class="tag" style="background:#e8f0fe;color:#1a56db">문자앱</span>'
+                       : h.status === 'test' ? '<span class="tag" style="background:#eef1f5;color:#5a6270">테스트</span>' : '';
+      return `<div class="hist-item">
+        <div class="top">
+          <span class="name">${esc(h.name)}</span>
+          <span class="tag ${h.type==='지각'?'late':'abs'}">${h.type}${h.reason?' · '+esc(h.reason):''}</span>
+          ${statusTag}
+          <span class="time">${t}</span>
+        </div>
+        <div class="msg">${esc(h.msg)}</div>
+      </div>`;
+    }).join('');
+  }
+  show('ovHistory');
+}
+function exportCSV(){
+  if(!history_.length){ toast('내보낼 기록이 없어요'); return; }
+  const rows = [['일시','이름','학년','유형','사유','학부모 번호','문자 내용','발송상태']];
+  history_.forEach(h => rows.push([h.ts.replace('T',' ').slice(0,16), h.name, h.grade||'', h.type, h.reason||'', h.phone, h.msg,
+    h.status==='sent'?'발송됨':h.status==='eco'?'문자앱':h.status==='test'?'테스트':'']));
+  const csv = '﻿' + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = `출결기록_${todayKey()}.csv`;
+  a.click();
+}
+
+// ---------- 설정 ----------
+function updateSolapiStatus(){
+  const box = document.getElementById('solapiStatus');
+  const key = document.getElementById('inApiKey').value.trim();
+  const secret = document.getElementById('inApiSecret').value.trim();
+  const phone = document.getElementById('inSenderPhone').value.trim();
+  const worker = document.getElementById('inWorkerUrl').value.trim();
+  const eco = document.getElementById('inEco').checked;
+  const modeNote = document.getElementById('modeNote');
+  if(key && secret && phone && worker){
+    box.textContent = '✅ 솔라피 설정 완료';
+    box.className = 'statusbox ok';
+  } else {
+    box.textContent = '⚠️ 솔라피 설정이 필요합니다.';
+    box.className = 'statusbox warn';
+  }
+  modeNote.textContent = eco ? '절약 (문자앱)' : (key && secret && phone && worker ? '실사용 (솔라피)' : '테스트');
+}
+function openSettings(){
+  document.getElementById('inAcademy').value = settings.academy || '';
+  document.getElementById('inApiKey').value = settings.apiKey || '';
+  document.getElementById('inApiSecret').value = settings.apiSecret || '';
+  document.getElementById('inSenderPhone').value = settings.senderPhone || '';
+  document.getElementById('inWorkerUrl').value = settings.workerUrl || '';
+  document.getElementById('inEco').checked = !!settings.ecoMode;
+  updateSolapiStatus();
+  show('ovSettings');
+}
+function saveSettings(){
+  settings.academy = document.getElementById('inAcademy').value.trim();
+  settings.apiKey = document.getElementById('inApiKey').value.trim();
+  settings.apiSecret = document.getElementById('inApiSecret').value.trim();
+  settings.senderPhone = document.getElementById('inSenderPhone').value.trim();
+  settings.workerUrl = document.getElementById('inWorkerUrl').value.trim();
+  settings.ecoMode = document.getElementById('inEco').checked;
+  LS.set('settings', settings);
+  updateSolapiStatus();
+  closeAll(); render();
+}
+
+// ---------- 공통 ----------
+function show(id){ document.getElementById(id).classList.add('show'); }
+function hide(id){ document.getElementById(id).classList.remove('show'); }
+function closeAll(){ document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show')); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('pointerdown', e => { if(e.target === o) closeAll(); });
+});
+['inApiKey','inApiSecret','inSenderPhone','inWorkerUrl'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateSolapiStatus);
+});
+document.getElementById('inEco').addEventListener('change', updateSolapiStatus);
+document.getElementById('bulkText').addEventListener('input', updateBulkPreview);
+
+const now = new Date();
+document.getElementById('today').textContent =
+  `${now.getMonth()+1}월 ${now.getDate()}일 (${'일월화수목금토'[now.getDay()]})`;
+
+render();
+</script>
+</body>
+</html>
