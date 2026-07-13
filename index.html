@@ -42,6 +42,12 @@
   }
 
   main { padding:20px; max-width:1100px; margin:0 auto; }
+  .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .fchip {
+    border:1.5px solid #d8dde5; background:#fff; border-radius:20px;
+    padding:7px 14px; font-size:14px; font-weight:600; color:#5a6270; cursor:pointer;
+  }
+  .fchip.on { background:#1f3864; color:#fff; border-color:#1f3864; }
   .grid {
     display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px;
   }
@@ -114,6 +120,7 @@
   .btn.ghost { background:#eef1f5; color:#3a4150; }
   .btn.ghost:active { background:#e2e6ec; }
   .btn.danger { background:#fdecec; color:#c0392b; flex:0 0 auto; padding:15px 20px; }
+  .btn:disabled { opacity:.55; }
 
   .msgbox {
     background:#f4f6f9; border-radius:12px; padding:14px; font-size:15px;
@@ -158,13 +165,21 @@
     max-width:90vw; text-align:center;
   }
   .toast.show { opacity:1; }
+
+  .loader { display:flex; justify-content:center; padding:48px 0; }
+  .loader .spin {
+    width:28px; height:28px; border-radius:50%;
+    border:3px solid #d8e2f7; border-top-color:#3b74f2;
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
 
 <header>
   <h1 id="acaName">출결 관리</h1>
-  <span class="testbadge" id="modeBadge">테스트 모드</span>
+  <span class="testbadge" id="modeBadge" style="background:#eef1f5;color:#5a6270;border-color:#d8dde5">로딩 중...</span>
   <span class="date" id="today"></span>
   <div class="hbtns">
     <button class="hbtn" onclick="openBulk()">일괄추가</button>
@@ -174,11 +189,13 @@
 </header>
 
 <main>
+  <div class="loader" id="loader"><div class="spin"></div></div>
+  <div class="filters" id="filters"></div>
   <div id="groups"></div>
   <div class="empty" id="empty" style="display:none">
     아직 등록된 학생이 없어요.<br>아래 <b>+ 학생 추가</b> 버튼으로 시작하세요.
   </div>
-  <div class="grid" style="margin-top:22px">
+  <div class="grid" id="addRow" style="margin-top:22px; display:none">
     <button class="addbtn" onclick="openAdd()">+ 학생 추가</button>
   </div>
 </main>
@@ -202,7 +219,7 @@
     <div class="btnrow">
       <button class="btn danger" id="btnDelete" style="display:none" onclick="deleteStudent()">삭제</button>
       <button class="btn ghost" onclick="closeAll()">취소</button>
-      <button class="btn primary" onclick="saveStudent()">저장</button>
+      <button class="btn primary" id="btnStuSave" onclick="saveStudent()">저장</button>
     </div>
   </div>
 </div>
@@ -218,7 +235,7 @@
     <div class="statusbox warn" id="bulkPreview">붙여넣으면 인식 결과가 표시됩니다.</div>
     <div class="btnrow">
       <button class="btn ghost" onclick="closeAll()">취소</button>
-      <button class="btn primary" onclick="saveBulk()">추가</button>
+      <button class="btn primary" id="btnBulkSave" onclick="saveBulk()">추가</button>
     </div>
   </div>
 </div>
@@ -276,10 +293,16 @@
 <div class="overlay" id="ovSettings">
   <div class="modal">
     <h2>설정</h2>
+    <div class="gradehead">구글 시트 연동</div>
     <div class="field">
-      <label>학원 이름 (문자 머리말에 사용)</label>
-      <input id="inAcademy" placeholder="고려에듀학원" autocomplete="off">
+      <label>데이터 서버 주소 (Apps Script 웹 앱 URL)</label>
+      <input id="inDataUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" spellcheck="false">
     </div>
+    <div class="field">
+      <label>데이터 키 (스크립트의 TOKEN과 동일하게)</label>
+      <input id="inDataToken" placeholder="예: koryo-2026" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="note">주소를 입력하면 학생 명단과 발송 기록이 구글 시트에 저장되어 <b>모든 기기에서 공유</b>됩니다. 비워두면 이 기기에만 저장됩니다. 인터넷이 끊겨도 마지막 명단은 캐시로 표시됩니다.</div>
 
     <div class="gradehead" style="margin-top:20px">절약 모드</div>
     <div class="switchrow">
@@ -324,17 +347,18 @@ const LS = {
 };
 let students = LS.get('students', []);
 let history_ = LS.get('history', []);
-let settings = LS.get('settings', { academy:'고려에듀학원', apiKey:'', apiSecret:'', senderPhone:'', workerUrl:'', ecoMode:false });
-if(!settings.academy){ settings.academy = '고려에듀학원'; }
-if(settings.apiKey === undefined) settings.apiKey = '';
-if(settings.apiSecret === undefined) settings.apiSecret = '';
-if(settings.senderPhone === undefined) settings.senderPhone = '';
-if(settings.workerUrl === undefined) settings.workerUrl = '';
+const ACADEMY = '고려에듀학원';   // 학원 이름 고정
+let settings = LS.get('settings', { apiKey:'', apiSecret:'', senderPhone:'', workerUrl:'', ecoMode:false, dataUrl:'', dataToken:'', filterGrade:'전체' });
+settings.academy = ACADEMY;
+['apiKey','apiSecret','senderPhone','workerUrl','dataUrl','dataToken'].forEach(k => { if(settings[k] === undefined) settings[k] = ''; });
 if(settings.ecoMode === undefined) settings.ecoMode = false;
+if(settings.filterGrade === undefined) settings.filterGrade = '전체';
 LS.set('settings', settings);
+
 function isFullyConfigured(){
   return !!(settings.apiKey && settings.apiSecret && settings.senderPhone && settings.workerUrl);
 }
+function usesServer(){ return !!settings.dataUrl; }
 
 let editingId = null;   // 수정 중인 학생 id
 let flow = {};          // {student, type, reason}
@@ -347,13 +371,66 @@ const GRADES = ['초1','초2','초3','초4','초5','초6','중1','중2','중3','
 document.getElementById('inGrade').innerHTML =
   GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
 
+// ---------- 구글 시트 API ----------
+async function apiGet(){
+  const u = settings.dataUrl + (settings.dataUrl.includes('?') ? '&' : '?') +
+            'token=' + encodeURIComponent(settings.dataToken || '') + '&action=all';
+  const res = await fetch(u);
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data;
+}
+async function apiPost(action, payload){
+  const res = await fetch(settings.dataUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ token: settings.dataToken || '', action }, payload))
+  });
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data;
+}
+
+async function loadData(manual){
+  if(!usesServer()){
+    students = LS.get('students', []);
+    history_ = LS.get('history', []);
+    render();
+    return;
+  }
+  try{
+    const data = await apiGet();
+    // 최초 이전 제안: 시트가 비어있고 이 기기에 데이터가 있으면
+    const localStu = LS.get('students', []);
+    if(!data.students.length && localStu.length && !LS.get('migrated', false)){
+      if(confirm(`시트가 비어 있고 이 기기에 학생 ${localStu.length}명이 저장되어 있어요.\n이 기기의 데이터를 시트로 업로드할까요?`)){
+        await apiPost('migrate', { students: localStu, history: LS.get('history', []) });
+        LS.set('migrated', true);
+        toast('✅ 시트로 업로드 완료!');
+        return loadData();
+      }
+    }
+    students = data.students;
+    history_ = data.history;
+    LS.set('students', students);   // 오프라인 캐시
+    LS.set('history', history_);
+    render();
+    if(manual) toast('✅ 시트에서 최신 데이터를 불러왔어요');
+  }catch(e){
+    students = LS.get('students', []);
+    history_ = LS.get('history', []);
+    render();
+    toast('⚠️ 시트 연결 실패 — 저장된 캐시를 표시합니다 (' + e.message + ')');
+  }
+}
+
 // ---------- 렌더 ----------
 function todayKey(){ return new Date().toISOString().slice(0,10); }
 
 function makeStuBtn(s, tk){
   const btn = document.createElement('button');
   btn.className = 'stu';
-  const todaySent = history_.filter(h => h.id === s.id && h.ts.slice(0,10) === tk);
+  const todaySent = history_.filter(h => h.id === s.id && String(h.ts).slice(0,10) === tk);
   let badge = '';
   if (todaySent.length){
     const last = todaySent[todaySent.length-1];
@@ -373,8 +450,24 @@ function makeStuBtn(s, tk){
   return btn;
 }
 
+function renderFilters(){
+  const box = document.getElementById('filters');
+  const present = GRADES.filter(g => students.some(s => (s.grade || '기타') === g));
+  if(present.length <= 1){ box.innerHTML = ''; return; }
+  const fg = settings.filterGrade || '전체';
+  box.innerHTML = ['전체', ...present].map(g =>
+    `<button class="fchip ${fg === g ? 'on' : ''}" onclick="setFilter('${g}')">${g}</button>`).join('');
+}
+function setFilter(g){
+  settings.filterGrade = g;
+  LS.set('settings', settings);
+  render();
+}
+
 function render(){
-  document.getElementById('acaName').textContent = settings.academy ? settings.academy + ' 출결' : '출결 관리';
+  document.getElementById('loader').style.display = 'none';
+  document.getElementById('addRow').style.display = '';
+  document.getElementById('acaName').textContent = ACADEMY + ' 출결';
   const badge = document.getElementById('modeBadge');
   if(settings.ecoMode){
     badge.textContent = '절약 모드';
@@ -386,11 +479,14 @@ function render(){
     badge.textContent = '테스트 모드';
     badge.style.background = '#fff3e0'; badge.style.color = '#c2660a'; badge.style.borderColor = '#f5c78b';
   }
+  renderFilters();
   const box = document.getElementById('groups');
   box.innerHTML = '';
   const tk = todayKey();
+  const fg = settings.filterGrade || '전체';
 
   GRADES.forEach(g => {
+    if(fg !== '전체' && g !== fg) return;
     const list = students.filter(s => (s.grade || '기타') === g);
     if(!list.length) return;
     const head = document.createElement('div');
@@ -425,17 +521,30 @@ function openEdit(id){
   editingId = id;
   document.getElementById('stuModalTitle').textContent = '학생 정보 수정';
   document.getElementById('inName').value = s.name;
-  document.getElementById('inGrade').value = s.grade || '기타';
+  document.getElementById('inGrade').value = GRADES.includes(s.grade) ? s.grade : '기타';
   document.getElementById('inPhone').value = s.phone;
   document.getElementById('btnDelete').style.display = 'block';
   show('ovStudent');
 }
-function saveStudent(){
+async function saveStudent(){
   const name = document.getElementById('inName').value.trim();
   const grade = document.getElementById('inGrade').value;
   const phone = document.getElementById('inPhone').value.trim();
   if(!name){ toast('이름을 입력해주세요'); return; }
   if(!/^01[016789][-\s]?\d{3,4}[-\s]?\d{4}$/.test(phone)){ toast('휴대폰 번호를 확인해주세요'); return; }
+  const btn = document.getElementById('btnStuSave');
+  if(usesServer()){
+    btn.disabled = true; btn.textContent = '저장 중...';
+    try{
+      if(editingId) await apiPost('updateStudent', { id: editingId, name, grade, phone });
+      else await apiPost('addStudent', { name, grade, phone });
+      closeAll();
+      await loadData();
+      toast('✅ 시트에 저장됨');
+    }catch(e){ toast('❌ 저장 실패: ' + e.message); }
+    finally{ btn.disabled = false; btn.textContent = '저장'; }
+    return;
+  }
   if(editingId){
     const s = students.find(x => x.id === editingId);
     s.name = name; s.grade = grade; s.phone = phone;
@@ -445,8 +554,20 @@ function saveStudent(){
   LS.set('students', students);
   closeAll(); render();
 }
-function deleteStudent(){
-  if(!confirm('이 학생을 삭제할까요? 발송 기록은 유지됩니다.')) return;
+async function deleteStudent(){
+  const warn = usesServer()
+    ? '이 학생을 삭제할까요?\n⚠️ 시트에서 삭제되어 모든 선생님의 기기에서 사라집니다. (발송 기록은 유지)'
+    : '이 학생을 삭제할까요? 발송 기록은 유지됩니다.';
+  if(!confirm(warn)) return;
+  if(usesServer()){
+    try{
+      await apiPost('deleteStudent', { id: editingId });
+      closeAll();
+      await loadData();
+      toast('삭제됨');
+    }catch(e){ toast('❌ 삭제 실패: ' + e.message); }
+    return;
+  }
   students = students.filter(x => x.id !== editingId);
   LS.set('students', students);
   closeAll(); render();
@@ -495,9 +616,24 @@ function updateBulkPreview(){
   if(bad.length) msg += ` / ⚠️ 인식 실패 ${bad.length}줄 — 번호 형식을 확인하세요`;
   box.textContent = msg;
 }
-function saveBulk(){
+async function saveBulk(){
   const { ok, bad } = parseBulk(document.getElementById('bulkText').value);
   if(!ok.length){ toast('추가할 학생을 인식하지 못했어요'); return; }
+  const btn = document.getElementById('btnBulkSave');
+  if(usesServer()){
+    btn.disabled = true; btn.textContent = '추가 중...';
+    try{
+      const r = await apiPost('bulkAdd', { students: ok });
+      closeAll();
+      await loadData();
+      let msg = `${r.added}명 추가 완료`;
+      if(r.dup) msg += ` (중복 ${r.dup}명 제외)`;
+      if(bad.length) msg += ` / 실패 ${bad.length}줄`;
+      toast(msg);
+    }catch(e){ toast('❌ 추가 실패: ' + e.message); }
+    finally{ btn.disabled = false; btn.textContent = '추가'; }
+    return;
+  }
   let added = 0, dup = 0;
   ok.forEach(s => {
     const digits = s.phone.replace(/[^0-9]/g, '');
@@ -540,7 +676,7 @@ function pickType(type){
   }
 }
 function buildMsg(){
-  const a = settings.academy || 'OO학원';
+  const a = ACADEMY;
   const n = flow.student.name;
   if(flow.type === '지각')
     return `[${a}] ${n} 학생이 수업 시작 시간까지 도착하지 않아 안전 확인차 연락드립니다. 이동 중이거나 사정이 있으시면 회신 부탁드립니다.`;
@@ -566,6 +702,17 @@ function openPreview(){
   }
   show('ovPreview');
 }
+function recordHistory(status, msg){
+  const rec = {
+    id: flow.student.id, name: flow.student.name, grade: flow.student.grade || '', phone: flow.student.phone,
+    type: flow.type, reason: flow.reason, msg, ts: new Date().toISOString(), status
+  };
+  history_.push(rec);
+  LS.set('history', history_);
+  if(usesServer()){
+    apiPost('addHistory', { record: rec }).catch(() => toast('⚠️ 시트 기록 저장 실패 (기기에는 저장됨)'));
+  }
+}
 async function sendMsg(){
   const msg = document.getElementById('pvMsg').value.trim();
   const btn = document.getElementById('btnSend');
@@ -575,11 +722,7 @@ async function sendMsg(){
     const to = flow.student.phone.replace(/[^0-9]/g, '');
     const isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent);
     const sep = isApple ? '&' : '?';
-    history_.push({
-      id: flow.student.id, name: flow.student.name, grade: flow.student.grade || '', phone: flow.student.phone,
-      type: flow.type, reason: flow.reason, msg, ts: new Date().toISOString(), status:'eco'
-    });
-    LS.set('history', history_);
+    recordHistory('eco', msg);
     closeAll(); render();
     location.href = `sms:${to}${sep}body=${encodeURIComponent(msg)}`;
     toast(`📱 메시지 앱으로 이동 — 전송 버튼을 눌러주세요`);
@@ -587,11 +730,7 @@ async function sendMsg(){
   }
 
   if(!isFullyConfigured()){
-    history_.push({
-      id: flow.student.id, name: flow.student.name, grade: flow.student.grade || '', phone: flow.student.phone,
-      type: flow.type, reason: flow.reason, msg, ts: new Date().toISOString(), status:'test'
-    });
-    LS.set('history', history_);
+    recordHistory('test', msg);
     closeAll(); render();
     toast(`[테스트] ${flow.student.name} 학부모에게 ${flow.type} 문자 발송 완료 (기록 저장됨)`);
     return;
@@ -617,11 +756,7 @@ async function sendMsg(){
     if(!res.ok || data.error){
       throw new Error(data.error || `발송 실패 (HTTP ${res.status})`);
     }
-    history_.push({
-      id: flow.student.id, name: flow.student.name, grade: flow.student.grade || '', phone: flow.student.phone,
-      type: flow.type, reason: flow.reason, msg, ts: new Date().toISOString(), status:'sent'
-    });
-    LS.set('history', history_);
+    recordHistory('sent', msg);
     closeAll(); render();
     toast(`✅ ${flow.student.name} 학부모에게 ${flow.type} 문자 발송 완료`);
   } catch(err){
@@ -639,7 +774,8 @@ function openHistory(){
   else {
     box.innerHTML = [...history_].reverse().map(h => {
       const d = new Date(h.ts);
-      const t = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      const t = isNaN(d) ? String(h.ts).slice(5,16) :
+        `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
       const statusTag = h.status === 'sent' ? '<span class="tag" style="background:#eafaf0;color:#1e8e5a">발송됨</span>'
                        : h.status === 'eco' ? '<span class="tag" style="background:#e8f0fe;color:#1a56db">문자앱</span>'
                        : h.status === 'test' ? '<span class="tag" style="background:#eef1f5;color:#5a6270">테스트</span>' : '';
@@ -659,7 +795,7 @@ function openHistory(){
 function exportCSV(){
   if(!history_.length){ toast('내보낼 기록이 없어요'); return; }
   const rows = [['일시','이름','학년','유형','사유','학부모 번호','문자 내용','발송상태']];
-  history_.forEach(h => rows.push([h.ts.replace('T',' ').slice(0,16), h.name, h.grade||'', h.type, h.reason||'', h.phone, h.msg,
+  history_.forEach(h => rows.push([String(h.ts).replace('T',' ').slice(0,16), h.name, h.grade||'', h.type, h.reason||'', h.phone, h.msg,
     h.status==='sent'?'발송됨':h.status==='eco'?'문자앱':h.status==='test'?'테스트':'']));
   const csv = '﻿' + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
@@ -687,7 +823,8 @@ function updateSolapiStatus(){
   modeNote.textContent = eco ? '절약 (문자앱)' : (key && secret && phone && worker ? '실사용 (솔라피)' : '테스트');
 }
 function openSettings(){
-  document.getElementById('inAcademy').value = settings.academy || '';
+  document.getElementById('inDataUrl').value = settings.dataUrl || '';
+  document.getElementById('inDataToken').value = settings.dataToken || '';
   document.getElementById('inApiKey').value = settings.apiKey || '';
   document.getElementById('inApiSecret').value = settings.apiSecret || '';
   document.getElementById('inSenderPhone').value = settings.senderPhone || '';
@@ -696,17 +833,25 @@ function openSettings(){
   updateSolapiStatus();
   show('ovSettings');
 }
-function saveSettings(){
-  settings.academy = document.getElementById('inAcademy').value.trim();
+function collectSettings(){
+  settings.dataUrl = document.getElementById('inDataUrl').value.trim();
+  settings.dataToken = document.getElementById('inDataToken').value.trim();
   settings.apiKey = document.getElementById('inApiKey').value.trim();
   settings.apiSecret = document.getElementById('inApiSecret').value.trim();
   settings.senderPhone = document.getElementById('inSenderPhone').value.trim();
   settings.workerUrl = document.getElementById('inWorkerUrl').value.trim();
   settings.ecoMode = document.getElementById('inEco').checked;
   LS.set('settings', settings);
-  updateSolapiStatus();
-  closeAll(); render();
 }
+function saveSettings(){
+  const before = settings.dataUrl;
+  collectSettings();
+  updateSolapiStatus();
+  closeAll();
+  if(settings.dataUrl !== before || usesServer()) loadData();
+  else render();
+}
+
 
 // ---------- 공통 ----------
 function show(id){ document.getElementById(id).classList.add('show'); }
@@ -726,11 +871,16 @@ document.querySelectorAll('.overlay').forEach(o => {
 document.getElementById('inEco').addEventListener('change', updateSolapiStatus);
 document.getElementById('bulkText').addEventListener('input', updateBulkPreview);
 
+// 앱으로 돌아올 때마다 자동 새로고침 (시트 연동 시)
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && usesServer()) loadData();
+});
+
 const now = new Date();
 document.getElementById('today').textContent =
   `${now.getMonth()+1}월 ${now.getDate()}일 (${'일월화수목금토'[now.getDay()]})`;
 
-render();
+loadData();
 </script>
 </body>
 </html>
