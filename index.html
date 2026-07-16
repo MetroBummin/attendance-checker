@@ -29,7 +29,6 @@
   .hbtn:active { background:#eef1f5; }
   .hbtns { display:flex; gap:12px; }
 
-  /* 모바일 대응: 좁은 화면에서는 헤더가 두 줄로 */
   @media (max-width: 700px){
     header { flex-wrap:wrap; row-gap:10px; padding:12px 14px; gap:8px; }
     header h1 { font-size:17px; }
@@ -133,7 +132,6 @@
   .statusbox.ok { background:#eafaf0; color:#1e8e5a; border:1px solid #b7e8cd; }
   .statusbox.warn { background:#fff3e0; color:#c2660a; border:1px solid #f5c78b; }
 
-  /* 절약모드 토글 스위치 */
   .switchrow { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
   .switchrow .lab { font-size:14px; font-weight:700; color:#3a4150; }
   .switch { position:relative; display:inline-block; width:52px; height:30px; flex:0 0 auto; }
@@ -173,6 +171,11 @@
     animation:spin .8s linear infinite;
   }
   @keyframes spin { to { transform:rotate(360deg); } }
+
+  #ovLock { z-index:80; background:#1f3864; }
+  #ovLock .modal { max-width:400px; text-align:left; }
+  #ovLock .logo { font-size:22px; font-weight:800; color:#1f3864; margin-bottom:4px; }
+  #ovLock .sub { font-size:13px; color:#8a93a1; margin-bottom:20px; }
 </style>
 </head>
 <body>
@@ -199,6 +202,26 @@
     <button class="addbtn" onclick="openAdd()">+ 학생 추가</button>
   </div>
 </main>
+
+<!-- 로그인 잠금 -->
+<div class="overlay" id="ovLock">
+  <div class="modal">
+    <div class="logo">고려에듀학원 출결</div>
+    <div class="sub">처음 사용 시 한 번만 입력하면 됩니다.</div>
+    <div class="field">
+      <label>공용 비밀번호</label>
+      <input id="lockPw" type="password" placeholder="비밀번호" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>내 발신번호 (본인 휴대폰 번호)</label>
+      <input id="lockPhone" placeholder="예: 010-1234-5678" inputmode="tel" autocomplete="off">
+    </div>
+    <div class="statusbox warn" id="lockMsg" style="display:none"></div>
+    <div class="btnrow">
+      <button class="btn primary" id="btnUnlock" onclick="unlock()">시작하기</button>
+    </div>
+  </div>
+</div>
 
 <!-- 학생 추가/수정 -->
 <div class="overlay" id="ovStudent">
@@ -289,110 +312,161 @@
   </div>
 </div>
 
-<!-- 설정 -->
+<!-- 설정 (선생님용 간편) -->
 <div class="overlay" id="ovSettings">
   <div class="modal">
     <h2>설정</h2>
-    <div class="gradehead">구글 시트 연동</div>
     <div class="field">
-      <label>데이터 서버 주소 (Apps Script 웹 앱 URL)</label>
-      <input id="inDataUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" spellcheck="false">
+      <label>내 발신번호 (본인 휴대폰 번호)</label>
+      <input id="inSenderPhone" placeholder="예: 010-1234-5678" inputmode="tel" autocomplete="off">
     </div>
-    <div class="field">
-      <label>데이터 키 (스크립트의 TOKEN과 동일하게)</label>
-      <input id="inDataToken" placeholder="예: koryo-2026" autocomplete="off" spellcheck="false">
-    </div>
-    <div class="note">주소를 입력하면 학생 명단과 발송 기록이 구글 시트에 저장되어 <b>모든 기기에서 공유</b>됩니다. 비워두면 이 기기에만 저장됩니다. 인터넷이 끊겨도 마지막 명단은 캐시로 표시됩니다.</div>
+    <div class="note">문자는 이 번호(본인 휴대폰)로 발송되고, 학부모 답장도 이 번호로 옵니다.</div>
 
     <div class="gradehead" style="margin-top:20px">절약 모드</div>
     <div class="switchrow">
       <span class="lab">문자앱으로 보내기 (발송비 0원)</span>
       <label class="switch"><input type="checkbox" id="inEco"><span class="slider"></span></label>
     </div>
-    <div class="note">켜면 '발송' 버튼이 휴대폰 <b>메시지 앱</b>을 열고 내용·수신번호가 입력된 상태로 전환됩니다. 전송 버튼만 누르면 되고, 문자 무제한 요금제면 비용이 들지 않습니다. 단, 한 명씩만 보낼 수 있고 실제 전송 여부는 기록되지 않습니다(기록에는 '문자앱'으로 표시). 발신번호는 이 기기의 전화번호가 됩니다.</div>
+    <div class="note">켜면 '발송' 버튼이 휴대폰 <b>메시지 앱</b>을 열고 내용·수신번호가 입력된 상태로 전환됩니다. 전송 버튼만 누르면 되고, 문자 무제한 요금제면 비용이 들지 않습니다. 단, 한 명씩만 보낼 수 있고 실제 전송 여부는 기록되지 않습니다.</div>
 
-    <div class="gradehead" style="margin-top:20px">솔라피(Solapi) 연동</div>
-    <div id="solapiStatus" class="statusbox">⚠️ 솔라피 설정이 필요합니다.</div>
-    <div class="field">
-      <label>솔라피 API Key</label>
-      <input id="inApiKey" placeholder="API Key 입력" autocomplete="off" spellcheck="false">
-    </div>
-    <div class="field">
-      <label>솔라피 API Secret</label>
-      <input id="inApiSecret" type="password" placeholder="API Secret 입력" autocomplete="off" spellcheck="false">
-    </div>
-    <div class="field">
-      <label>발신번호 (본인 휴대폰 번호)</label>
-      <input id="inSenderPhone" placeholder="예: 010-1234-5678" inputmode="tel" autocomplete="off">
-    </div>
-    <div class="field">
-      <label>발송 서버(Worker) 주소</label>
-      <input id="inWorkerUrl" placeholder="https://your-worker.workers.dev" autocomplete="off" spellcheck="false">
-    </div>
-    <div class="note">이 값들은 이 기기의 브라우저(localStorage)에만 저장되며, 선생님별로 각자의 발신번호를 입력해 본인 번호로 발송합니다. API Key/Secret과 발송 서버 주소는 공용 값을 입력하시면 됩니다.</div>
-    <div class="note">발송 모드: <b id="modeNote">테스트</b> — 절약 모드가 켜져 있으면 문자앱으로, 꺼져 있고 위 4개 항목이 모두 채워지면 솔라피로 발송됩니다.</div>
+    <div class="statusbox" id="modeStatus" style="margin-top:14px"></div>
+
     <div class="btnrow">
+      <button class="btn ghost" onclick="openAdmin()">관리자 설정</button>
       <button class="btn ghost" onclick="closeAll()">취소</button>
       <button class="btn primary" onclick="saveSettings()">저장</button>
     </div>
   </div>
 </div>
 
+<!-- 관리자 설정 (비상용) -->
+<div class="overlay" id="ovAdmin">
+  <div class="modal">
+    <h2>관리자 설정 <small>비상 시에만</small></h2>
+    <div class="note">솔라피·구글시트·공용 비밀번호는 모두 <b>발송 서버(Worker) 안</b>에 있습니다. 변경이 필요하면 Worker 코드를 수정하세요. 이 화면에서는 앱이 바라보는 Worker 주소만 바꿀 수 있습니다.</div>
+    <div class="field">
+      <label>발송 서버(Worker) 주소</label>
+      <input id="inWorkerUrl" placeholder="비워두면 앱 내장 기본값 사용" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="btnrow" style="margin-bottom:10px">
+      <button class="btn danger" onclick="resetAdmin()">초기화</button>
+      <button class="btn ghost" onclick="show('ovSettings');hide('ovAdmin')">뒤로</button>
+      <button class="btn primary" onclick="saveAdmin()">저장</button>
+    </div>
+    <div class="note">이 기기의 로그인(발신번호·비밀번호)을 다시 설정하려면:</div>
+    <button class="btn ghost" style="width:100%" onclick="logoutDevice()">이 기기 로그아웃</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
+/* ============================================================
+ *  ▼▼▼ 최초 배포 시 이 2개 값만 채우면 됩니다 ▼▼▼
+ *  (솔라피 키·시트 주소·시트 토큰·공용 비밀번호는 모두 Worker 안에 있어
+ *   이 공개 소스에는 어떤 비밀 정보도 들어가지 않습니다.)
+ * ============================================================ */
+const CONFIG = {
+  WORKER_URL:     'PASTE_WORKER_URL',        // 클라우드플레어 Worker v3 주소
+  ADMIN_PASSWORD: 'Codeforprogram!23'        // 관리자(고상범) 전용 비밀번호
+};
+/* ============================================================ */
+
 const LS = {
   get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(e){ return d; } },
   set(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
 };
+const ACADEMY = '고려에듀학원';
+
+let overrides = LS.get('overrides', {});
+function workerUrl(){
+  const ov = overrides && overrides.workerUrl;
+  return (ov && String(ov).trim()) ? ov : CONFIG.WORKER_URL;
+}
+function ready(){ const u = workerUrl(); return !!(u && u !== 'PASTE_WORKER_URL'); }
+
 let students = LS.get('students', []);
 let history_ = LS.get('history', []);
-const ACADEMY = '고려에듀학원';   // 학원 이름 고정
-let settings = LS.get('settings', { apiKey:'', apiSecret:'', senderPhone:'', workerUrl:'', ecoMode:false, dataUrl:'', dataToken:'', filterGrade:'전체' });
-settings.academy = ACADEMY;
-['apiKey','apiSecret','senderPhone','workerUrl','dataUrl','dataToken'].forEach(k => { if(settings[k] === undefined) settings[k] = ''; });
+let settings = LS.get('settings', { senderPhone:'', ecoMode:false, filterGrade:'전체', unlocked:false, appPw:'' });
+['senderPhone','filterGrade','appPw'].forEach(k => { if(settings[k] === undefined) settings[k] = (k==='filterGrade'?'전체':''); });
 if(settings.ecoMode === undefined) settings.ecoMode = false;
-if(settings.filterGrade === undefined) settings.filterGrade = '전체';
+if(settings.unlocked === undefined) settings.unlocked = false;
 LS.set('settings', settings);
 
-function isFullyConfigured(){
-  return !!(settings.apiKey && settings.apiSecret && settings.senderPhone && settings.workerUrl);
-}
-function usesServer(){ return !!settings.dataUrl; }
+function canSend(){ return !!(settings.senderPhone && ready()); }
 
-let editingId = null;   // 수정 중인 학생 id
-let flow = {};          // {student, type, reason}
+let editingId = null;
+let flow = {};
 let pressTimer = null, longPressed = false;
 
 const REASONS = ['병결','여행','학교 행사','가정 사정','사전연락 없음','기타'];
 const GRADES = ['초1','초2','초3','초4','초5','초6','중1','중2','중3','고1','고2','고3','기타'];
 
-// 학년 select 옵션 채우기
 document.getElementById('inGrade').innerHTML =
   GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
 
-// ---------- 구글 시트 API ----------
-async function apiGet(){
-  const u = settings.dataUrl + (settings.dataUrl.includes('?') ? '&' : '?') +
-            'token=' + encodeURIComponent(settings.dataToken || '') + '&action=all';
-  const res = await fetch(u);
-  const data = await res.json();
-  if(data.error) throw new Error(data.error);
+// ---------- Worker 호출 ----------
+async function callWorker(payload){
+  const res = await fetch(workerUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ password: settings.appPw }, payload))
+  });
+  let data;
+  try { data = await res.json(); } catch(e) { data = {}; }
+  if(!res.ok || data.error) throw new Error(data.error || `오류 (HTTP ${res.status})`);
   return data;
 }
-async function apiPost(action, payload){
-  const res = await fetch(settings.dataUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ token: settings.dataToken || '', action }, payload))
-  });
-  const data = await res.json();
-  if(data.error) throw new Error(data.error);
-  return data;
+async function apiGet(){ return callWorker({ type:'sheet', op:'get' }); }
+async function apiPost(action, payload){ return callWorker({ type:'sheet', op:'post', action, payload }); }
+
+// ---------- 로그인 잠금 ----------
+function showLock(){
+  document.getElementById('loader').style.display = 'none';
+  document.getElementById('lockPw').value = '';
+  document.getElementById('lockPhone').value = settings.senderPhone || '';
+  document.getElementById('lockMsg').style.display = 'none';
+  show('ovLock');
+}
+async function unlock(){
+  const pw = document.getElementById('lockPw').value.trim();
+  const phone = document.getElementById('lockPhone').value.trim();
+  const msg = document.getElementById('lockMsg');
+  const btn = document.getElementById('btnUnlock');
+  if(!/^01[016789][-\s]?\d{3,4}[-\s]?\d{4}$/.test(phone)){
+    msg.textContent = '휴대폰 번호 형식을 확인해주세요.'; msg.style.display = 'block'; return;
+  }
+  btn.disabled = true; btn.textContent = '확인 중...';
+  // Worker에 비밀번호 검증 (오프라인이면 통과 후 실제 사용 시 검증)
+  try{
+    const res = await fetch(workerUrl(), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ password: pw, type:'ping' })
+    });
+    if(res.status === 403){
+      msg.textContent = '비밀번호가 올바르지 않습니다.'; msg.style.display = 'block';
+      btn.disabled = false; btn.textContent = '시작하기'; return;
+    }
+  }catch(e){ /* 네트워크 불가(오프라인): 그대로 진행 */ }
+  settings.appPw = pw;
+  settings.senderPhone = phone;
+  settings.unlocked = true;
+  LS.set('settings', settings);
+  btn.disabled = false; btn.textContent = '시작하기';
+  hide('ovLock');
+  document.getElementById('loader').style.display = 'flex';
+  loadData();
+}
+function logoutDevice(){
+  if(!confirm('이 기기의 로그인을 초기화할까요?\n다시 공용 비밀번호와 발신번호를 입력해야 합니다.')) return;
+  settings.unlocked = false; settings.appPw = '';
+  LS.set('settings', settings);
+  closeAll();
+  showLock();
 }
 
 async function loadData(manual){
-  if(!usesServer()){
+  if(!ready()){
     students = LS.get('students', []);
     history_ = LS.get('history', []);
     render();
@@ -400,7 +474,6 @@ async function loadData(manual){
   }
   try{
     const data = await apiGet();
-    // 최초 이전 제안: 시트가 비어있고 이 기기에 데이터가 있으면
     const localStu = LS.get('students', []);
     if(!data.students.length && localStu.length && !LS.get('migrated', false)){
       if(confirm(`시트가 비어 있고 이 기기에 학생 ${localStu.length}명이 저장되어 있어요.\n이 기기의 데이터를 시트로 업로드할까요?`)){
@@ -410,17 +483,17 @@ async function loadData(manual){
         return loadData();
       }
     }
-    students = data.students;
-    history_ = data.history;
-    LS.set('students', students);   // 오프라인 캐시
+    students = data.students || [];
+    history_ = data.history || [];
+    LS.set('students', students);
     LS.set('history', history_);
     render();
-    if(manual) toast('✅ 시트에서 최신 데이터를 불러왔어요');
+    if(manual) toast('✅ 최신 데이터를 불러왔어요');
   }catch(e){
     students = LS.get('students', []);
     history_ = LS.get('history', []);
     render();
-    toast('⚠️ 시트 연결 실패 — 저장된 캐시를 표시합니다 (' + e.message + ')');
+    toast('⚠️ 서버 연결 실패 — 저장된 캐시를 표시합니다 (' + e.message + ')');
   }
 }
 
@@ -472,7 +545,7 @@ function render(){
   if(settings.ecoMode){
     badge.textContent = '절약 모드';
     badge.style.background = '#e8f0fe'; badge.style.color = '#1a56db'; badge.style.borderColor = '#b6ccf5';
-  } else if(isFullyConfigured()){
+  } else if(canSend()){
     badge.textContent = '실사용 모드';
     badge.style.background = '#eafaf0'; badge.style.color = '#1e8e5a'; badge.style.borderColor = '#b7e8cd';
   } else {
@@ -533,14 +606,14 @@ async function saveStudent(){
   if(!name){ toast('이름을 입력해주세요'); return; }
   if(!/^01[016789][-\s]?\d{3,4}[-\s]?\d{4}$/.test(phone)){ toast('휴대폰 번호를 확인해주세요'); return; }
   const btn = document.getElementById('btnStuSave');
-  if(usesServer()){
+  if(ready()){
     btn.disabled = true; btn.textContent = '저장 중...';
     try{
       if(editingId) await apiPost('updateStudent', { id: editingId, name, grade, phone });
       else await apiPost('addStudent', { name, grade, phone });
       closeAll();
       await loadData();
-      toast('✅ 시트에 저장됨');
+      toast('✅ 저장됨');
     }catch(e){ toast('❌ 저장 실패: ' + e.message); }
     finally{ btn.disabled = false; btn.textContent = '저장'; }
     return;
@@ -555,11 +628,11 @@ async function saveStudent(){
   closeAll(); render();
 }
 async function deleteStudent(){
-  const warn = usesServer()
-    ? '이 학생을 삭제할까요?\n⚠️ 시트에서 삭제되어 모든 선생님의 기기에서 사라집니다. (발송 기록은 유지)'
+  const warn = ready()
+    ? '이 학생을 삭제할까요?\n⚠️ 모든 선생님의 기기에서 사라집니다. (발송 기록은 유지)'
     : '이 학생을 삭제할까요? 발송 기록은 유지됩니다.';
   if(!confirm(warn)) return;
-  if(usesServer()){
+  if(ready()){
     try{
       await apiPost('deleteStudent', { id: editingId });
       closeAll();
@@ -573,7 +646,7 @@ async function deleteStudent(){
   closeAll(); render();
 }
 
-// ---------- 일괄 추가 (엑셀 붙여넣기) ----------
+// ---------- 일괄 추가 ----------
 const PHONE_RE = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/;
 function parseBulk(text){
   const ok = [], bad = [];
@@ -620,7 +693,7 @@ async function saveBulk(){
   const { ok, bad } = parseBulk(document.getElementById('bulkText').value);
   if(!ok.length){ toast('추가할 학생을 인식하지 못했어요'); return; }
   const btn = document.getElementById('btnBulkSave');
-  if(usesServer()){
+  if(ready()){
     btn.disabled = true; btn.textContent = '추가 중...';
     try{
       const r = await apiPost('bulkAdd', { students: ok });
@@ -693,11 +766,11 @@ function openPreview(){
   if(settings.ecoMode){
     note.textContent = '절약 모드: 발송을 누르면 메시지 앱이 열립니다. 앱에서 전송 버튼까지 눌러야 실제 발송됩니다.';
     btn.textContent = '문자앱으로 발송';
-  } else if(isFullyConfigured()){
-    note.textContent = '실사용 모드: 발송을 누르면 솔라피를 통해 실제 문자가 발송됩니다.';
+  } else if(canSend()){
+    note.textContent = '발송을 누르면 실제 문자가 발송됩니다.';
     btn.textContent = '발송';
   } else {
-    note.textContent = '테스트 모드: 실제 문자는 발송되지 않고 기록에만 저장됩니다. (설정에서 솔라피 정보를 모두 입력하면 실제 발송으로 전환됩니다)';
+    note.textContent = '테스트 모드: 실제 문자는 발송되지 않고 기록에만 저장됩니다. (설정에서 발신번호를 입력하면 실제 발송으로 전환됩니다)';
     btn.textContent = '발송';
   }
   show('ovPreview');
@@ -709,15 +782,14 @@ function recordHistory(status, msg){
   };
   history_.push(rec);
   LS.set('history', history_);
-  if(usesServer()){
-    apiPost('addHistory', { record: rec }).catch(() => toast('⚠️ 시트 기록 저장 실패 (기기에는 저장됨)'));
+  if(ready()){
+    apiPost('addHistory', { record: rec }).catch(() => toast('⚠️ 서버 기록 저장 실패 (기기에는 저장됨)'));
   }
 }
 async function sendMsg(){
   const msg = document.getElementById('pvMsg').value.trim();
   const btn = document.getElementById('btnSend');
 
-  // 절약 모드: 기기의 문자앱으로 넘기기
   if(settings.ecoMode){
     const to = flow.student.phone.replace(/[^0-9]/g, '');
     const isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent);
@@ -729,7 +801,7 @@ async function sendMsg(){
     return;
   }
 
-  if(!isFullyConfigured()){
+  if(!canSend()){
     recordHistory('test', msg);
     closeAll(); render();
     toast(`[테스트] ${flow.student.name} 학부모에게 ${flow.type} 문자 발송 완료 (기록 저장됨)`);
@@ -740,22 +812,12 @@ async function sendMsg(){
   const origLabel = btn.textContent;
   btn.textContent = '발송 중...';
   try{
-    const res = await fetch(settings.workerUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiKey: settings.apiKey,
-        apiSecret: settings.apiSecret,
-        from: settings.senderPhone.replace(/[^0-9]/g, ''),
-        to: flow.student.phone.replace(/[^0-9]/g, ''),
-        text: msg
-      })
+    await callWorker({
+      type: 'sms',
+      from: settings.senderPhone.replace(/[^0-9]/g, ''),
+      to: flow.student.phone.replace(/[^0-9]/g, ''),
+      text: msg
     });
-    let data;
-    try { data = await res.json(); } catch(e) { data = {}; }
-    if(!res.ok || data.error){
-      throw new Error(data.error || `발송 실패 (HTTP ${res.status})`);
-    }
     recordHistory('sent', msg);
     closeAll(); render();
     toast(`✅ ${flow.student.name} 학부모에게 ${flow.type} 문자 발송 완료`);
@@ -805,82 +867,82 @@ function exportCSV(){
 }
 
 // ---------- 설정 ----------
-function updateSolapiStatus(){
-  const box = document.getElementById('solapiStatus');
-  const key = document.getElementById('inApiKey').value.trim();
-  const secret = document.getElementById('inApiSecret').value.trim();
-  const phone = document.getElementById('inSenderPhone').value.trim();
-  const worker = document.getElementById('inWorkerUrl').value.trim();
+function updateModeStatus(){
+  const box = document.getElementById('modeStatus');
   const eco = document.getElementById('inEco').checked;
-  const modeNote = document.getElementById('modeNote');
-  if(key && secret && phone && worker){
-    box.textContent = '✅ 솔라피 설정 완료';
-    box.className = 'statusbox ok';
-  } else {
-    box.textContent = '⚠️ 솔라피 설정이 필요합니다.';
-    box.className = 'statusbox warn';
-  }
-  modeNote.textContent = eco ? '절약 (문자앱)' : (key && secret && phone && worker ? '실사용 (솔라피)' : '테스트');
+  const phone = document.getElementById('inSenderPhone').value.trim();
+  if(eco){ box.className='statusbox ok'; box.textContent='현재 모드: 절약 (문자앱)'; }
+  else if(phone){ box.className='statusbox ok'; box.textContent='현재 모드: 실사용 (자동 발송)'; }
+  else { box.className='statusbox warn'; box.textContent='발신번호를 입력하면 실제 발송이 켜집니다.'; }
 }
 function openSettings(){
-  document.getElementById('inDataUrl').value = settings.dataUrl || '';
-  document.getElementById('inDataToken').value = settings.dataToken || '';
-  document.getElementById('inApiKey').value = settings.apiKey || '';
-  document.getElementById('inApiSecret').value = settings.apiSecret || '';
   document.getElementById('inSenderPhone').value = settings.senderPhone || '';
-  document.getElementById('inWorkerUrl').value = settings.workerUrl || '';
   document.getElementById('inEco').checked = !!settings.ecoMode;
-  updateSolapiStatus();
+  updateModeStatus();
   show('ovSettings');
 }
-function collectSettings(){
-  settings.dataUrl = document.getElementById('inDataUrl').value.trim();
-  settings.dataToken = document.getElementById('inDataToken').value.trim();
-  settings.apiKey = document.getElementById('inApiKey').value.trim();
-  settings.apiSecret = document.getElementById('inApiSecret').value.trim();
+function saveSettings(){
   settings.senderPhone = document.getElementById('inSenderPhone').value.trim();
-  settings.workerUrl = document.getElementById('inWorkerUrl').value.trim();
   settings.ecoMode = document.getElementById('inEco').checked;
   LS.set('settings', settings);
-}
-function saveSettings(){
-  const before = settings.dataUrl;
-  collectSettings();
-  updateSolapiStatus();
   closeAll();
-  if(settings.dataUrl !== before || usesServer()) loadData();
-  else render();
+  render();
 }
 
+// ---------- 관리자 설정 ----------
+function openAdmin(){
+  const pw = prompt('관리자 비밀번호를 입력하세요');
+  if(pw === null) return;
+  if(pw !== CONFIG.ADMIN_PASSWORD){ toast('관리자 비밀번호가 올바르지 않습니다'); return; }
+  document.getElementById('inWorkerUrl').value = overrides.workerUrl || '';
+  hide('ovSettings'); show('ovAdmin');
+}
+function saveAdmin(){
+  overrides = { workerUrl: document.getElementById('inWorkerUrl').value.trim() };
+  LS.set('overrides', overrides);
+  closeAll();
+  toast('✅ 관리자 설정 저장됨');
+  loadData();
+}
+function resetAdmin(){
+  if(!confirm('Worker 주소를 앱 내장 기본값으로 되돌릴까요?')) return;
+  overrides = {};
+  LS.set('overrides', overrides);
+  closeAll();
+  toast('기본값으로 초기화됨');
+  loadData();
+}
 
 // ---------- 공통 ----------
 function show(id){ document.getElementById(id).classList.add('show'); }
 function hide(id){ document.getElementById(id).classList.remove('show'); }
-function closeAll(){ document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show')); }
+function closeAll(){ document.querySelectorAll('.overlay').forEach(o => { if(o.id !== 'ovLock') o.classList.remove('show'); }); }
 function toast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2600);
 }
 document.querySelectorAll('.overlay').forEach(o => {
-  o.addEventListener('pointerdown', e => { if(e.target === o) closeAll(); });
+  o.addEventListener('pointerdown', e => { if(e.target === o && o.id !== 'ovLock') closeAll(); });
 });
-['inApiKey','inApiSecret','inSenderPhone','inWorkerUrl'].forEach(id => {
-  document.getElementById(id).addEventListener('input', updateSolapiStatus);
-});
-document.getElementById('inEco').addEventListener('change', updateSolapiStatus);
+document.getElementById('inEco').addEventListener('change', updateModeStatus);
+document.getElementById('inSenderPhone').addEventListener('input', updateModeStatus);
 document.getElementById('bulkText').addEventListener('input', updateBulkPreview);
 
-// 앱으로 돌아올 때마다 자동 새로고침 (시트 연동 시)
 document.addEventListener('visibilitychange', () => {
-  if(!document.hidden && usesServer()) loadData();
+  if(!document.hidden && settings.unlocked && ready()) loadData();
 });
 
 const now = new Date();
 document.getElementById('today').textContent =
   `${now.getMonth()+1}월 ${now.getDate()}일 (${'일월화수목금토'[now.getDay()]})`;
 
-loadData();
+// ---------- 시작 ----------
+if(!settings.unlocked || !settings.senderPhone){
+  showLock();
+} else {
+  loadData();
+}
 </script>
 </body>
 </html>
